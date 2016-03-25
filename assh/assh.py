@@ -92,7 +92,7 @@ class AsshPicker(Picker):
                 line = "%s %s" % (self.args.eval, line)
 
         if self.args.command:
-            fn = getattr(self.settings, 'cmd_%s' % self.args.command.upper())
+            fn = getattr(self.settings, 'cmd_%s' % self.args.command.upper(), None)
             if fn:
                 line = fn(self, line)
             else:
@@ -108,21 +108,20 @@ class AsshPicker(Picker):
         return 'ssh %s' % line
 
     def cmd_FAB(self, line):
-        return 'fab %s -- %s' % (line, self.args)
+        return 'fab -H %s %s' % (line, ' '.join(self.args.rest))
 
+def get_rest_of_args(rest):
+    # for r in rest:
+    pass
 
 def assh():
     parser = argparse.ArgumentParser()
-    parser.add_argument("account", type=str,
-                    help="aws account")
-
-    parser.add_argument("command", type=str, nargs='?',
-                    help="command - eg. ssh, fab")
 
     parser.add_argument("-o", "--out", type=str,
                     help="output to file")
     parser.add_argument("-d", "--debug",
                     help="debug mode - shows scores etc.")
+
     parser.add_argument("-i", "--input",
                     help="input file")
 
@@ -133,7 +132,7 @@ def assh():
                     help="just echo the selected command, useful for pipe out")
 
     parser.add_argument("-I", "--separator",
-                        default=' ',
+                        default=',',
                         help="seperator in for multiple selection - ie. to join selected lines with ; etc.")
 
     parser.add_argument("-r", "--replace",
@@ -143,6 +142,17 @@ def assh():
     parser.add_argument("-l", "--logfile",
                         default='assh.log',
                         help="where to put log file in debug mode")
+
+    parser.add_argument("account", type=str,
+                    help="aws account")
+
+    parser.add_argument("command", type=str, nargs='?',
+                    help="command - eg. ssh, fab")
+
+
+    parser.add_argument('rest', nargs=argparse.REMAINDER)
+
+
     args = parser.parse_args()
 
     if args.debug:
