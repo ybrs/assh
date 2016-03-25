@@ -91,16 +91,33 @@ class AsshPicker(Picker):
             else:
                 line = "%s %s" % (self.args.eval, line)
 
+        if self.args.command:
+            fn = getattr(self.settings, 'cmd_%s' % self.args.command.upper())
+            if fn:
+                line = fn(self, line)
+            else:
+                fn = getattr(self, 'cmd_%s' % self.args.command.upper())
+                line = fn(line)
+
         f = open(self.args.out, 'w')
         f.write(line.encode('utf8'))
         f.close()
         raise QuitException()
+
+    def cmd_SSH(self, line):
+        return 'ssh %s' % line
+
+    def cmd_FAB(self, line):
+        return 'fab %s -- %s' % (line, self.args)
 
 
 def assh():
     parser = argparse.ArgumentParser()
     parser.add_argument("account", type=str,
                     help="aws account")
+
+    parser.add_argument("command", type=str, nargs='?',
+                    help="command - eg. ssh, fab")
 
     parser.add_argument("-o", "--out", type=str,
                     help="output to file")
@@ -124,7 +141,7 @@ def assh():
                         help="replace with this in eval string. ie. hst -r '__' --eval='cd __ && ls'")
 
     parser.add_argument("-l", "--logfile",
-                        default='hst.log',
+                        default='assh.log',
                         help="where to put log file in debug mode")
     args = parser.parse_args()
 
@@ -136,6 +153,9 @@ def assh():
         logger.setLevel(logging.CRITICAL)
 
     settings = imp.load_source('settings', '%s/.assh/%s.py' % (os.path.expanduser('~'), args.account))
+
+    AsshPicker.settings = settings
+
     main(args,
          picker_cls=AsshPicker,
          loader=SimpleLineLoader(settings.AWS_ACCESS_KEY_ID, settings.AWS_SECRET_ACCESS_KEY))
