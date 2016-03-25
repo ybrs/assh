@@ -2,7 +2,7 @@
 
 from setuptools import setup, find_packages
 
-VERSION = '0.1.8'
+VERSION = '0.1.9'
 DESCRIPTION = 'aws server list in ncurses - select your server/s and ssh to them'
 
 setup(
@@ -14,7 +14,7 @@ setup(
     url="http://github.com/ybrs/assh",
     author_email='aybars.badur@gmail.com',
     packages=['assh'],
-    install_requires=['hst'],
+    install_requires=['hst', 'boto', 'plotly==1.9.6'],
     scripts=['./assh/bin/assh'],
     classifiers = [
         'Development Status :: 4 - Beta',
