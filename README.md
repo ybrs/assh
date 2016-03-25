@@ -1,5 +1,7 @@
 assh - select your servers from aws with ncurses and then ssh easily - or do something else with them.
 
+[![asciicast](https://asciinema.org/a/2ga28o9gnondowm60ol7iad69.png)](https://asciinema.org/a/2ga28o9gnondowm60ol7iad69)
+
 How
 ==========================
 assh brings a list of servers from your AWS account. Search, move, Hit enter to select one,
@@ -41,3 +43,15 @@ you can also extend and override commands in project.py file
 
 Usage
 ===========================
+
+using fabric
+
+   assh project fab -P -- 'uptime && df -h'
+
+   assh project fab -P uptime
+
+   assh project ssh
+
+   assh project graph_cpu
+
+etc.
