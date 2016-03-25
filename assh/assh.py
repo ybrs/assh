@@ -152,11 +152,7 @@ class AsshPicker(Picker):
             )
         })
 
-        ret = []
-        for l in stats:
-            ret.append(l)
-
-        return "%s\n" % ret
+        return "see the browser\n"
 
     def cmd_INFO(self, line):
         instance_info = """
