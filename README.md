@@ -17,7 +17,7 @@ Installation
 =========================
 use pip to install
 
-   pip install assh
+    pip install assh
 
 then create a python file in your ~/.assh directory with somename
 
@@ -46,12 +46,12 @@ Usage
 
 using fabric
 
-   assh project fab -P -- 'uptime && df -h'
+    assh project fab -P -- 'uptime && df -h'
 
-   assh project fab -P uptime
+    assh project fab -P uptime
 
-   assh project ssh
+    assh project ssh
 
-   assh project graph_cpu
+    assh project graph_cpu
 
 etc.

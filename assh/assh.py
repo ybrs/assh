@@ -152,7 +152,7 @@ class AsshPicker(Picker):
             )
         })
 
-        return "see the browser\n"
+        return "echo see the browser\n"
 
     def cmd_INFO(self, line):
         instance_info = """
