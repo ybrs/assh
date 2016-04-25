@@ -1,5 +1,4 @@
 #!/bin/sh
-
 pipe=0
 
 for i in "$@"
@@ -27,9 +26,18 @@ while [ -h "$SOURCE" ]; do
 done
 BASEDIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 PYTHON=`which python`
-hstpy="$($PYTHON -c 'from assh import assh; print assh.__file__.replace(".pyc", ".py")')"
-
-$PYTHON $hstpy --out=$f "$@" 3>&1 1>&2
+# asshpy="$($PYTHON -c 'from assh import assh; print assh.__file__.replace(".pyc", ".py")' 2>/dev/null)"
+# if [ $? -ne 0 ]; then
+#   # if we are in a virtualenv
+#   PYTHON="$BASEDIR/python"
+#   asshpy="$($PYTHON -c 'from assh import assh; print assh.__file__.replace(".pyc", ".py")' 2>/dev/null)"
+#   if [ $? -ne 0 ]; then
+#     PYTHON="/usr/bin/python"
+#     asshpy="$($PYTHON -c 'from assh import assh; print assh.__file__.replace(".pyc", ".py")' 2>/dev/null)"
+#     CMD = "$PYTHON -m assh.assh"
+#   fi
+# fi
+$PYTHON -m assh.assh --out=$f "$@" 3>&1 1>&2
 
 if [[ $? != 0 ]]; then exit $?; fi
 if [ -f "$f" ]
