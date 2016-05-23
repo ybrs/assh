@@ -5,7 +5,15 @@ import boto.ec2
 import imp
 import subprocess
 
-def get_instances(region, aws_key, aws_secret, **tags):
+def get_instances(region, aws_key, aws_secret, tags):
+    """
+
+    :param region:
+    :param aws_key:
+    :param aws_secret:
+    :param tags: is a dictionary, eg: {'Name': 'App1'}
+    :return:
+    """
     conn = boto.ec2.connect_to_region(region, # n virginia
             aws_access_key_id=aws_key,
             aws_secret_access_key=aws_secret)
@@ -14,8 +22,8 @@ def get_instances(region, aws_key, aws_secret, **tags):
     if tags:
         filter_tags = {}
         for tn, tv in tags.iteritems():
-            filter_tags[tn] = tv
-        filters.update(tags)
+            filter_tags['tag:%s' % tn] = tv
+        filters.update(filter_tags)
     filters.update({'instance-state-name':'running'})
 
     reservations = conn.get_all_instances(filters=filters)
@@ -42,6 +50,7 @@ import argparse
 import thread
 import time
 from hst.hst import Picker, QuitException
+from functools import partial
 
 import locale
 locale.setlocale(locale.LC_ALL,"")
@@ -50,13 +59,14 @@ logger = logging.getLogger(__name__)
 
 
 class SimpleLineLoader(object):
-    def __init__(self, aws_region, aws_key, aws_secret):
+    def __init__(self, aws_region, aws_key, aws_secret, tags=None):
         self.aws_key = aws_key
         self.aws_secret = aws_secret
         self.aws_region = aws_region
+        self.tags = tags
 
     def load(self):
-        self.instances = get_instances(self.aws_region, self.aws_key, self.aws_secret)
+        self.instances = get_instances(self.aws_region, self.aws_key, self.aws_secret, tags=self.tags)
         lines = []
         for i in self.instances:
             line = []
@@ -69,7 +79,6 @@ class SimpleLineLoader(object):
             lines.append(' '.join(line))
         return lines
 
-
 class AsshPicker(Picker):
 
     def get_hostname_from_line(self, line):
@@ -77,6 +86,19 @@ class AsshPicker(Picker):
 
     def get_instance_id_from_line(self, line):
         return line.split('|')[1].strip()
+
+    def get_cmd_fn(self, cmd_name):
+        fn = getattr(self.settings, 'cmd_%s' % self.args.command.upper(), None)
+        if fn:
+            return partial(fn, self)
+        # look for builtins
+        return getattr(self, 'cmd_%s' % self.args.command.upper())
+
+    def write_output(self, line):
+        f = open(self.args.out, 'w')
+        f.write(line.encode('utf8'))
+        f.close()
+
 
     def key_ENTER(self):
         line = self.pick_line()
@@ -97,17 +119,18 @@ class AsshPicker(Picker):
                 line = "%s %s" % (self.args.eval, line)
 
         if self.args.command:
-            fn = getattr(self.settings, 'cmd_%s' % self.args.command.upper(), None)
-            if fn:
-                line = fn(self, line)
-            else:
-                fn = getattr(self, 'cmd_%s' % self.args.command.upper())
-                line = fn(line)
+            fn = self.get_cmd_fn(self.args.command)
+            line = fn(line)
 
-        f = open(self.args.out, 'w')
-        f.write(line.encode('utf8'))
-        f.close()
+        self.write_output(line)
+
         raise QuitException()
+
+    def cmd_NOOP(self, line):
+        """
+        a command that does nothing, just prints output
+        """
+        return 'echo %s' % line
 
     def cmd_SSH(self, line):
         return 'ssh %s' % line
@@ -210,6 +233,13 @@ def assh():
 
     parser.add_argument("-o", "--out", type=str,
                     help="output to file")
+
+    parser.add_argument("-F", "--filter-tag",
+                        nargs='+',
+                    help="filter by tags eg: --filter-tag=Name:app1")
+
+    parser.add_argument('-N', '--filter-name', help="filter by tag Name")
+
     parser.add_argument("-d", "--debug",
                     help="debug mode - shows scores etc.")
 
@@ -236,7 +266,7 @@ def assh():
 
     parser.add_argument("account", type=str,
                     help="aws account")
-
+    #
     parser.add_argument("command", type=str, nargs='?',
                     help="command - eg. ssh, fab")
 
@@ -245,7 +275,6 @@ def assh():
 
 
     args = parser.parse_args()
-
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
@@ -258,11 +287,39 @@ def assh():
 
     AsshPicker.settings = settings
 
+    tags = {}
+    if args.filter_tag:
+        for n in args.filter_tag:
+            k, v = n.split(':')
+            tags[k] = v
+
+    if args.filter_name:
+        tags['Name'] = args.filter_name
+
+    loader = SimpleLineLoader(
+                 settings.AWS_REGION,
+                 settings.AWS_ACCESS_KEY_ID,
+                 settings.AWS_SECRET_ACCESS_KEY,
+                 tags=tags)
+
+    lines = loader.load()
+
+    if args.command=='list':
+        for n in lines:
+            print n
+        return
+
+    if len(lines) == 1:
+        # no need to select anything...
+        picker = AsshPicker(args=args)
+        fn = picker.get_cmd_fn(args.command)
+        line = fn(lines[0].split('|')[0].strip())
+        picker.write_output(line)
+        return
+
     main(args,
          picker_cls=AsshPicker,
-         loader=SimpleLineLoader(
-             settings.AWS_REGION,
-             settings.AWS_ACCESS_KEY_ID, settings.AWS_SECRET_ACCESS_KEY))
+         loader=loader)
 
 if __name__ == '__main__':
     assh()
