@@ -62,18 +62,25 @@ class SimpleLineLoader(object):
     def __init__(self, aws_region, aws_key, aws_secret, tags=None):
         self.aws_key = aws_key
         self.aws_secret = aws_secret
-        self.aws_region = aws_region
+        if isinstance(aws_region, str):
+            aws_region = [aws_region]
+        self.aws_regions = aws_region
         self.tags = tags
 
     def load(self):
-        self.instances = get_instances(self.aws_region, self.aws_key, self.aws_secret, tags=self.tags)
+        self.instances = []
+        for region in self.aws_regions:
+            instances = get_instances(region, self.aws_key, self.aws_secret, tags=self.tags)
+            self.instances += instances
         lines = []
         for i in self.instances:
             line = []
             line.append(i.public_dns_name.ljust(50))
             line.append(' | ')
             line.append(i.id.ljust(10))
+            line.append(' | %s' % i.region.name)
             line.append(' | ')
+
             for k, v in i.tags.items():
                 line.append('%s = %s' % (k, v))
             lines.append(' '.join(line))
