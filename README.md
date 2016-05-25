@@ -5,9 +5,10 @@ assh - select your servers from aws with ncurses and then ssh easily - or do som
 How
 ==========================
 assh brings a list of servers from your AWS account. Search, move, Hit enter to select one,
-then ssh to them.
+then ssh (or whatever you want) to them.
 
-You can also add some other plugins - currently fabric and graphing cpu from cloudwatch is supported.
+Its extendible, so you can add some other commands - use it with fabric, ansible, ssh etc.
+
 
 Why
 ==========================
@@ -30,6 +31,9 @@ add your AWS account info
     AWS_SECRET_ACCESS_KEY = 'YYYY'
     AWS_REGION = 'us-east-1'
 
+a region also can be a list eg
+    AWS_REGION = ['us-east-1', 'us-east-2']
+
 and then you can
 
     assh project ssh
@@ -40,6 +44,7 @@ you can also extend and override commands in project.py file
 
     def cmd_SSH(self, line):
         return 'ssh -i ~/.ssh/project.pem ubuntu@%s' % line
+
 
 Usage
 ===========================
@@ -54,4 +59,17 @@ using fabric
 
     assh project graph_cpu
 
-etc.
+you can also filter by tags
+
+    # show only worker instances - ones tagged with Role as worker
+    assh --filter-tag=Role:worker project ssh
+
+    # if we can only show one instance we don't show curses ui and jump directly to command
+    assh --filter-tag=Name:app1 project ssh
+
+    # because filtering with name is so common there is a shortcut
+    assh -N app1 project ssh
+
+    # we can pipe the servers name to another application with noop command
+    assh -N app1 project noop | xargs ssh -i ~/.ssh/foo.pem
+
