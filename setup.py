@@ -2,7 +2,7 @@
 
 from setuptools import setup, find_packages
 
-VERSION = '0.1.10'
+VERSION = '0.1.11'
 DESCRIPTION = 'aws server list in ncurses - select your server/s and ssh to them'
 
 setup(

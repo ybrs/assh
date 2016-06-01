@@ -5,6 +5,53 @@ import boto.ec2
 import imp
 import subprocess
 
+from hst.hst import main
+import os
+import sys
+if os.name != 'posix':
+    sys.exit('platform not supported')
+import logging
+import os
+import argparse
+from hst.hst import Picker, QuitException
+from functools import partial
+
+import locale
+locale.setlocale(locale.LC_ALL,"")
+
+logger = logging.getLogger(__name__)
+import curses
+
+
+class DummyRegion(object):
+    @property
+    def name(self):
+        return "region"
+
+class DummyInstance(object):
+    def __init__(self, ip):
+        self.ip = ip
+
+    @property
+    def id(self):
+        return "x"
+
+    @property
+    def region(self):
+        return DummyRegion()
+
+    @property
+    def name(self):
+        return "name"
+
+    @property
+    def public_dns_name(self):
+        return self.ip
+
+    @property
+    def tags(self):
+        return {}
+
 def get_instances(region, aws_key, aws_secret, tags):
     """
 
@@ -14,6 +61,7 @@ def get_instances(region, aws_key, aws_secret, tags):
     :param tags: is a dictionary, eg: {'Name': 'App1'}
     :return:
     """
+    # return [DummyInstance("hello - %s" % i) for i in range(1, 100)]
     conn = boto.ec2.connect_to_region(region, # n virginia
             aws_access_key_id=aws_key,
             aws_secret_access_key=aws_secret)
@@ -32,31 +80,6 @@ def get_instances(region, aws_key, aws_secret, tags):
         for i in r.instances:
             instances.append(i)
     return instances
-
-# print get_hosts()
-from hst.hst import main
-import argparse
-import logging
-import os
-import sys
-if os.name != 'posix':
-    sys.exit('platform not supported')
-import curses
-from operator import itemgetter
-import logging
-import os
-import sys
-import argparse
-import thread
-import time
-from hst.hst import Picker, QuitException
-from functools import partial
-
-import locale
-locale.setlocale(locale.LC_ALL,"")
-
-logger = logging.getLogger(__name__)
-
 
 class SimpleLineLoader(object):
     def __init__(self, aws_region, aws_key, aws_secret, tags=None):
@@ -88,26 +111,102 @@ class SimpleLineLoader(object):
 
 class AsshPicker(Picker):
 
+    output_only = False
+
     def get_hostname_from_line(self, line):
         return line.split('|')[0].strip()
 
     def get_instance_id_from_line(self, line):
         return line.split('|')[1].strip()
 
+    def get_cmd_fn_from_modules(self, *modules):
+        for module in modules:
+            fn = getattr(module, 'cmd_%s' % self.args.command.upper(), None)
+            if fn:
+                return fn
+
     def get_cmd_fn(self, cmd_name):
-        fn = getattr(self.settings, 'cmd_%s' % self.args.command.upper(), None)
+        from . import commands
+        fn = self.get_cmd_fn_from_modules(self.settings, commands)
         if fn:
             return partial(fn, self)
+
         # look for builtins
         return getattr(self, 'cmd_%s' % self.args.command.upper())
 
     def write_output(self, line):
-        f = open(self.args.out, 'w')
-        f.write(line.encode('utf8'))
-        f.close()
+        with open(self.args.out, 'w') as f:
+            if self.output_only:
+                out = '''cat <<'HereDocFromASSH' \n %s \nHereDocFromASSH\n\n''' % line
+                f.write(out.encode('utf8'))
+            else:
+                f.write(line.encode('utf8'))
 
+    def show_output(self, t):
+        self.output_only = t
+
+    def create_menu(self):
+        self.win.addstr(3, 10, "xxxxxxxxxxx", curses.color_pair(1))
+        for i in range(0, 10):
+            self.win.addstr(4 + i, 10, "x    %s     x" % i, curses.color_pair(1))
+        self.win.addstr(4 + 10, 10, "xxxxxxxxxxx", curses.color_pair(1))
+
+    def refresh_window(self, pressed_key=None):
+        self.lineno = 0
+        if pressed_key:
+            self.search_txt = self.append_after_cursor(self.search_txt, pressed_key)
+
+        # curses.endwin()
+        self.win.erase()
+
+        self.print_header(self.search_txt, cursor=True)
+
+        logger.debug("======================== refresh window ======================")
+        self.which_lines(self.search_txt)
+
+        if not self.last_lines:
+            self.print_line("Results [%s]" % self.index.size(), highlight=True)
+        else:
+            self.print_line("Results - [%s]" % len(self.last_lines), highlight=True)
+
+        max_y, max_x = self.get_max_viewport()
+
+        if self.selected_lineno > len(self.which_lines(self.search_txt)) - 1:
+            self.selected_lineno = len(self.which_lines(self.search_txt)) - 1
+
+        logger.debug("self.multiple selected %s", self.multiple_selected)
+
+        for i, p in enumerate(self.last_lines[0:max_y]):
+            selected = i == self.selected_lineno
+            pending = (self.pick_line(i) in self.multiple_selected)
+            logger.debug("is pending %s [%s____%s]", pending, self.pick_line(i), self.multiple_selected)
+            try:
+                if pending:
+                    line = u"[x] %s" % p[1]
+                else:
+                    line = u"[ ] %s" % p[1]
+            except:
+                logger.exception("exception in adding line %s", p)
+            else:
+                try:
+                    self.print_line(line.strip(), highlight=selected, semi_highlight=pending)
+                except curses.error:
+                    break
+
+        # self.create_menu()
+
+        try:
+            s = 'type something to search | [F5] copy | [F6] multiple selection | [TAB] complete to current | [ENTER] run | [ESC] quit'
+            self.print_footer("[%s] %s" % (self.mode, s))
+        except curses.error as e:
+            pass
+        self.win.refresh()
 
     def key_ENTER(self):
+        # if not self.args.command:
+        #     self.create_menu()
+        #     self.refresh_window()
+        #     return
         line = self.pick_line()
         self.no_enter_yet = False
         logger.debug("selected_lineno: %s", line)
@@ -132,6 +231,14 @@ class AsshPicker(Picker):
         self.write_output(line)
 
         raise QuitException()
+
+    def key_DOWN(self):
+        max_y, max_x = self.get_max_viewport()
+
+        if self.selected_lineno < max_y - 1:
+            self.selected_lineno += 1
+
+        self.refresh_window()
 
     def cmd_NOOP(self, line):
         """

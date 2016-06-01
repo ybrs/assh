@@ -45,6 +45,7 @@ you can also extend and override commands in project.py file
     def cmd_SSH(self, line):
         return 'ssh -i ~/.ssh/project.pem ubuntu@%s' % line
 
+for more examples about adding your own commands, please see http://github.com/ybrs/assh/examples/project.py
 
 Usage
 ===========================
